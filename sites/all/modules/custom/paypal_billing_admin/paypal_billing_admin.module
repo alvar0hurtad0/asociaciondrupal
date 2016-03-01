@@ -6,16 +6,18 @@
 function paypal_billing_admin_menu() {
   $items = array();
 
+  // List plans.
   $items['admin/commerce/paypal-plans'] = array(
     'title' => 'PayPal Plans',
     'page callback' => 'paypal_plans_overview_page',
     'access arguments' => array('administer paypal billing plan'),
   );
 
+  // Add a new plan.
   $items['admin/commerce/paypal-plans/add'] = array(
     'title' => 'Add plan',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('paypal_plans_add'),
+    'page arguments' => array('paypal_billing_admin_add_plan'),
     'access arguments' => array('administer paypal billing plan'),
     'type' => MENU_LOCAL_ACTION,
   );
@@ -56,31 +58,64 @@ function paypal_billing_admin_menu() {
   return $items;
 }
 
+/**
+ * List all available plans.
+ * menu callback.
+ * @todo implement.
+ * @var $plan \PayPal\Api\Plan
+ */
 function paypal_plans_overview_page() {
-  return "paypal_plans_overview_page";
+  _paypal_get_sdk();
+  $PlanList = paypal_sdk_get_billing_plans();
+  $plans = $PlanList->getPlans();
+
+  $out = '';
+  /** @var \PayPal\Api\Plan $plan */
+  foreach ($plans as $plan) {
+    $out .= $plan->getId() . "<br>" .
+      $plan->getName() . "<br>" .
+      $plan->getDescription() . "<br>" .
+      $plan->getState() . "<br>" .
+      $plan->getCreateTime() . "<br>" .
+      $plan->getUpdateTime() . "<br><br>";
+  }
+
+  return $out;
+  // Todo implement a "tableselect" and bulk for CRUD
+
 }
 
-function paypal_plans_add($form, &$form_state) {
-  $links = array();
+function paypal_billing_admin_add_plan($form, &$form_state) {
 
-  $result = array('foo', 'bar');
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#required' => TRUE,
+  );
 
-  foreach ($result as $item) {
-    $links[] = $item;
-  }
+  $form['description'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Description'),
+    '#required' => TRUE,
+  );
 
-  if (count($links)) {
+  $form['value'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Value'),
+    '#required' => TRUE,
+  );
 
-    $form['submit'] = array(
-      '#type' => 'submit',
-      '#value' => t('Save configuration'),
-    );
-  }
-  else {
-    $form['#empty_text'] = t('There are no menu links yet. <a href="@link">Add link</a>.', array('@link' => url('admin/structure/menu/manage/' . $form['#menu']['menu_name'] . '/add')));
-  }
+  $form['currency'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Currency'),
+    '#required' => TRUE,
+  );
 
-  $form['#attached']['css'] = array(drupal_get_path('module', 'menu') . '/menu.css');
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Add plan'),
+  );
 
   return $form;
 }
@@ -185,7 +220,49 @@ function sample_activate_plan($id) {
 
 }
 
-function sample_list_plans() {
-  $plans = paypal_sdk_get_billing_plans();
-  return '<pre>' . print_r($plans, TRUE) . '</pre>';
+
+// Helpers
+// --------------------------------------
+/**
+ * Implementation of hook_theme.
+ */
+function paypal_billing_admin_theme() {
+  return array(
+    'tableform' => array(
+      'render element' => 'form',
+    ),
+  );
+}
+
+
+/**
+ * Theme callback for the form table.
+ */
+function theme_tableform(&$variables) {
+  // Get the userful values.
+  $form = $variables['form'];
+  $rows = $form['rows'];
+  $header = $form['#header'];
+
+  // Setup the structure to be rendered and returned.
+  $content = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => array(),
+  );
+
+  // Traverse each row.  @see element_chidren().
+  foreach (element_children($rows) as $row_index) {
+    $row = array();
+    // Traverse each column in the row.  @see element_children().
+    foreach (element_children($rows[$row_index]) as $col_index) {
+      // Render the column form element.
+      $row[] = drupal_render($rows[$row_index][$col_index]);
+    }
+    // Add the row to the table.
+    $content['#rows'][] = $row;
+  }
+
+  // Redner the table and return.
+  return drupal_render($content);
 }
